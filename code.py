@@ -1,4 +1,3 @@
-# Code Version 3.1.3
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -57,7 +56,7 @@ def process_single_combination(args):
     """
     处理单个组合
     """
-    i, j, raman_shifts, concentrations, intensities_matrix, output_dir, use_log = args
+    i, j, raman_shifts, concentrations, intensities_matrix, output_dir, use_log = args, itns_log = args
     
     raman_i = raman_shifts[i]
     raman_j = raman_shifts[j]
@@ -70,10 +69,11 @@ def process_single_combination(args):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         ratio = intensity_i / intensity_j
+        ratio = np.where(ratio > 0, ratio, np.nan)
         
-        if use_log in ['y', 'yes', '是']:
+        if itns_log in ['y', 'yes', '是']:
             # 过滤掉非正数的比例以避免 log10 报错
-            ratio = np.where(ratio > 0, ratio, np.nan)
+            
             intensity_diff = np.log10(ratio)
         else:
             intensity_diff = ratio
@@ -168,7 +168,7 @@ def process_single_combination(args):
     }
 
 def analyze_raman_data_multithreaded(csv_file, ranges_a, ranges_b, output_dir='raman_analysis', 
-                                     max_workers=None, use_processes=True, use_log="y"):
+                                     max_workers=None, use_processes=True, use_log="y", itns_log="y"):
     """
     分析拉曼光谱数据并支持多线程/多进程加速
     """
@@ -249,7 +249,7 @@ def analyze_raman_data_multithreaded(csv_file, ranges_a, ranges_b, output_dir='r
     args_list = []
     for i, j in combinations_list:
         args_list.append((i, j, raman_shifts, cct_cacul, 
-                         intensities_matrix, scatter_base_dir, use_log))
+                         intensities_matrix, scatter_base_dir, use_log, itns_log))
     
     executor_class = ProcessPoolExecutor if use_processes else ThreadPoolExecutor
     results = []
@@ -396,7 +396,8 @@ def main():
         print("请检查路径是否正确。")
         return
     
-    use_log = input("是否使用对数浓度？(y/n，默认为y): ").strip().lower() or 'y'
+    use_log = input("是否使用对数浓度？(y/n, 默认为y): ").strip().lower() or 'y'
+    itns_log = input("是否使用对数强度比值？(y/n, 默认为y):").strip().lower or 'y'
 
     ranges_a, ranges_b = [], []
     
@@ -440,7 +441,8 @@ def main():
                 output_dir=output_dir,
                 max_workers=max_workers,
                 use_processes=use_processes,
-                use_log=use_log
+                use_log=use_log,
+                itns_log=itns_log
             )
             
             if not results.empty:
