@@ -1,4 +1,4 @@
-# Code Verion 3.2.1
+# Code Verion 3.3.0
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -305,9 +305,63 @@ def main():
     valid_r2 = csv_df['R_squared'].dropna()
     if not valid_r2.empty:
         print(f"\n数据概览: 最优 R_squared = {valid_r2.max():.6f}, 平均 = {valid_r2.mean():.6f}")
+        
+        # ================= 新增：绘制 R 方分布图 =================
+        fig = plt.figure(figsize=(12, 6))
+        
+        ax1 = fig.add_subplot(1, 2, 1)
+        ax1.hist(valid_r2, bins=min(30, len(valid_r2)), edgecolor='black', alpha=0.7, color='skyblue')
+        ax1.set_xlabel('R_squared Value', fontsize=12)
+        ax1.set_ylabel('Frequency', fontsize=12)
+        ax1.set_title('R_squared Value Distribution Histogram', fontsize=14, fontweight='bold')
+        ax1.grid(True, alpha=0.3, linestyle='--')
+        
+        textstr = f'Valid Fits: {len(valid_r2)}\nMean: {valid_r2.mean():.4f}\nMedian: {valid_r2.median():.4f}\nStd: {valid_r2.std():.4f}'
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
+        ax1.text(0.98, 0.95, textstr, transform=ax1.transAxes, fontsize=10,
+                verticalalignment='top', horizontalalignment='right', bbox=props)
+        
+        ax2 = fig.add_subplot(1, 2, 2)
+        ax2.boxplot(valid_r2, vert=True, patch_artist=True)
+        ax2.set_ylabel('R_squared Value', fontsize=12)
+        ax2.set_title('R_squared Value Distribution Boxplot', fontsize=14, fontweight='bold')
+        ax2.grid(True, alpha=0.3, linestyle='--')
+        ax2.set_xticklabels(['Selected permutations'])
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, 'r_squared_distribution.png'), dpi=150, bbox_inches='tight')
+        fig.clf()
+        plt.close(fig)
+        print(f"R 方分布图已保存到: {os.path.join(output_dir, 'r_squared_distribution.png')}")
+        # ========================================================
     else:
-        print("未拟合出任何有效数据。")
+        print("未拟合出任何有效数据，跳过分布图绘制。")
         return
+
+    # ================= 保存文本总结报告 =================
+    summary_file = os.path.join(output_dir, 'analysis_summary.txt')
+    with open(summary_file, 'w', encoding='utf-8') as f:
+        f.write("处理报告\n")
+        f.write("=" * 50 + "\n\n")
+        f.write(f"设定的A组(刃天青)输入: {str_a}\n")
+        f.write(f"设定的B组(试卤灵)输入: {str_b}\n")
+        f.write(f"单个组内最多允许相加峰数: {max_len_input if max_len_input else '不限制'}\n\n")
+        f.write(f"分析时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"总排列数: {total_combinations}\n")
+        f.write(f"核心计算执行时间: {elapsed_time:.2f} 秒\n")
+        
+        if not valid_r2.empty:
+            f.write("\n最佳20个组合:\n")
+            f.write("-" * 30 + "\n")
+            for idx, row in csv_df.head(20).iterrows():
+                f.write(f"组合: {row['组合']}\n")
+                f.write(f"  R_squared: {row['R_squared']:.6f}\n")
+                f.write(f"  斜率: {row['斜率']:.6f}\n")
+                f.write(f"  截距: {row['截距']:.6f}\n")
+                f.write(f"  P值: {row['P值']:.6e}\n\n")
+            
+    print(f"txt 报告已保存到: {summary_file}")
+    # ========================================================
 
     # ================= 阶段 2：选择性绘图 =================
     plot_input = input("\n[阶段 2/2] 请输入需要导出散点图的最低 R_squared 阈值 (例如 0.85，输入 'n' 直接退出): ").strip()
