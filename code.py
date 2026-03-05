@@ -1,4 +1,4 @@
-# Code Verion 3.3.0
+# Code Verion 3.3.1
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -23,10 +23,10 @@ except:
     plt.rcParams['font.sans-serif'] = ['DejaVu Serif', 'DejaVu Sans']
     plt.rcParams['axes.unicode_minus'] = False
 
-def get_target_indices(input_str, raman_shifts):
+def get_target_indices(input_str, raman_shifts, mean_intensities):
     """
     解析用户输入，支持单点精确/就近匹配和范围匹配
-    支持格式: '704.326, 968.976, 1100-1200' 或 '[(704), (968)]'
+    如果输入的是范围，则在该范围内寻找平均强度最高的峰值点
     """
     if not input_str.strip():
         return []
@@ -45,13 +45,20 @@ def get_target_indices(input_str, raman_shifts):
             try:
                 start_str, end_str = part.split('-')
                 start, end = sorted([float(start_str.strip()), float(end_str.strip())])
-                # 寻找范围内所有索引
-                found = False
-                for idx, val in enumerate(raman_shifts):
-                    if start <= val <= end:
-                        indices.add(idx)
-                        found = True
-                if not found:
+                
+                # 获取范围内的所有候选索引
+                in_range_mask = (raman_shifts >= start) & (raman_shifts <= end)
+                range_indices = np.where(in_range_mask)[0]
+                
+                if len(range_indices) > 0:
+                    # 在该范围内的索引中找到平均强度最大的那个（即峰值点）
+                    range_intensities = mean_intensities[range_indices]
+                    peak_local_idx = np.nanargmax(range_intensities)
+                    peak_global_idx = range_indices[peak_local_idx]
+                    
+                    indices.add(peak_global_idx)
+                    print(f"提示：范围 {start}-{end} 匹配到峰值点，位于偏移量 {raman_shifts[peak_global_idx]:.3f}")
+                else:
                     print(f"警告：范围 {start}-{end} 内未找到任何拉曼偏移量。")
             except ValueError:
                 print(f"无法解析范围 '{part}'，跳过。")
@@ -221,6 +228,13 @@ def main():
     if np.sum(invalid_mask) > 0:
         intensities_matrix = np.where(intensities_matrix > 0, intensities_matrix, np.nan)
         print("已自动将非正数强度转为 NaN。")
+
+    # ======= 新增：计算平均强度光谱用于寻峰 =======
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        # 按行计算所有浓度下强度的平均值，忽略 NaN
+        mean_intensities = np.nanmean(intensities_matrix, axis=1)
+    # ===============================================
     
     use_log = input("是否使用对数浓度？(y/n, 默认为y): ").strip().lower() or 'y'
     itns_log = input("是否使用对数强度比值？(y/n, 默认为y):").strip().lower() or 'y'
@@ -229,13 +243,15 @@ def main():
         warnings.simplefilter("ignore")
         cct_cacul = np.log10(concentrations) if use_log in ['y', 'yes', '是'] else concentrations
 
+    # ======= 修改：传入 mean_intensities 参数 =======
     str_a = input("\n请输入A组(刃天青)的偏移量或范围 (例: 704.3, 968.9, 1100-1200): ").strip()
-    indices_a = get_target_indices(str_a, raman_shifts)
+    indices_a = get_target_indices(str_a, raman_shifts, mean_intensities)
     print(f"A组成功匹配到 {len(indices_a)} 个真实偏移节点。")
     
     str_b = input("\n请输入B组(试卤灵)的偏移量或范围 (例: 571.6, 717.1, 1200-1300): ").strip()
-    indices_b = get_target_indices(str_b, raman_shifts)
+    indices_b = get_target_indices(str_b, raman_shifts, mean_intensities)
     print(f"B组成功匹配到 {len(indices_b)} 个真实偏移节点。")
+    # ===============================================
 
     if not indices_a or not indices_b:
         print("错误：A组或B组未匹配到任何数据，程序终止。")
