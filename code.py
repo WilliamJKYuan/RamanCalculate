@@ -1,4 +1,4 @@
-# Code Verion 3.2.0
+# Code Verion 3.2.1
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -262,13 +262,12 @@ def main():
     start_time = time.time()
     max_workers_input = input("设置进程数 (默认全CPU线程-2): ").strip()
             
-    max_workers = None
+    max_workers = multiprocessing.cpu_count() - 2
     if max_workers_input:
         try:
             max_workers = int(max_workers_input)
         except ValueError:
             print("输入无效，将自动使用默认核心数")
-            max_workers = multiprocessing.cpu_count() - 2
     
     
     args_list = [
